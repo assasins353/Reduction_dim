@@ -1,0 +1,128 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+editor_options: 
+  chunk_output_type: inline
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(igraph)
+
+```
+
+```{r}
+library(pcalg)
+
+```
+
+```{r}
+library(bnlearn)
+
+```
+
+```{r}
+library(Rgraphviz)
+```
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+get_scores = function(tp,fp,fn)
+{
+  p = tp/(tp+fp)
+  r = tp/(tp+fn)
+  f = 2*p*r/(p+r)
+  
+  return(list("precision"=p,
+              "recall"= r,
+              "f1_score" = f))
+}
+```
+
+```{r}
+modelstring = paste0("[Age][Mileage][SocioEcon|Age][GoodStudent|Age:SocioEcon]",
+  "[RiskAversion|Age:SocioEcon][OtherCar|SocioEcon][VehicleYear|SocioEcon:RiskAversion]",
+  "[MakeModel|SocioEcon:RiskAversion][SeniorTrain|Age:RiskAversion]",
+  "[HomeBase|SocioEcon:RiskAversion][AntiTheft|SocioEcon:RiskAversion]",
+  "[RuggedAuto|VehicleYear:MakeModel][Antilock|VehicleYear:MakeModel]",
+  "[DrivingSkill|Age:SeniorTrain][CarValue|VehicleYear:MakeModel:Mileage]",
+  "[Airbag|VehicleYear:MakeModel][DrivQuality|RiskAversion:DrivingSkill]",
+  "[Theft|CarValue:HomeBase:AntiTheft][Cushioning|RuggedAuto:Airbag]",
+  "[DrivHist|RiskAversion:DrivingSkill][Accident|DrivQuality:Mileage:Antilock]",
+  "[ThisCarDam|RuggedAuto:Accident][OtherCarCost|RuggedAuto:Accident]",
+  "[MedCost|Age:Accident:Cushioning][ILiCost|Accident]",
+  "[ThisCarCost|ThisCarDam:Theft:CarValue][PropCost|ThisCarCost:OtherCarCost]")
+dag_t = model2network(modelstring)
+```
+
+
+
+```{r}
+d=data.matrix(insurance)
+
+#Make the categories start from 0
+d=d-1
+#Compute the number of levels for each variable
+tab_level=c()
+for(i in colnames(d)){
+  var=nlevels(as.factor(d[,i]))
+  tab_level=c(var,tab_level)
+}
+
+#Prepare the suffStat object
+#suffstat: A list of sufficient statistics, containing all necessary elements for the conditional independence decisions in the function indepTest.
+#indepTest: fonction for testing conditional independence 
+suffStat<-list(dm = d, nlev =tab_level , adaptDF = FALSE)
+
+pc.D<-pc(suffStat,indepTest=disCItest,alpha=0.05,labels=colnames(d),verbose = F)
+```
+
+```{r}
+amat = bnlearn::amat(as.bn(pc.D))
+dag_pc=as.bn(pc.D)
+amat
+
+```
+
+```{r}
+g <- Rgraphviz::layoutGraph(bnlearn::as.graphNEL(dag_pc))
+graph::nodeRenderInfo(g) <- list(fontsize=22)
+G = graph_from_adjacency_matrix(amat,mode = 'directed',diag = FALSE)
+Rgraphviz::renderGraph(g)
+#graphviz.plot(as.bn(pc.D), shape = "ellipse")
+```
+
+```{r}
+comp = bnlearn::compare(target = bnlearn::skeleton(dag_t), current =bnlearn::skeleton(dag_pc),arcs=TRUE)
+
+tp=length(comp$tp)/2
+comp$tp
+```
+
+```{r}
+fp=length(comp$fp)/2
+comp$fp
+```
+
+```{r}
+fn=length(comp$fn)/2
+comp$fn
+```
+
+```{r}
+get_scores(tp,fp,fn)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
